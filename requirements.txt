@@ -6,3 +6,11 @@ ruff
 tqdm
 typer
 -e .
+numpy
+pandas
+scikit-learn
+uvicorn
+fastapi
+joblib
+xgboost
+dvc
