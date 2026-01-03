@@ -27,6 +27,6 @@ try:
     from tqdm import tqdm
 
     logger.remove(0)
-    logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True)
+    logger.add('logs/{time}.log',rotation="1MB",retention="1 month", compression="zip",enqueue=True,format=lambda msg: tqdm.write(msg, end=""), colorize=True)
 except ModuleNotFoundError:
     pass
