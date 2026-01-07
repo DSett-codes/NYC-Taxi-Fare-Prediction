@@ -27,6 +27,9 @@ try:
     from tqdm import tqdm
 
     logger.remove(0)
-    logger.add('logs/{time}.log',rotation="1MB",retention="1 month", compression="zip",enqueue=True,format=lambda msg: tqdm.write(msg, end=""), colorize=True)
+    # Console logger using tqdm.write to avoid conflicts with progress bars
+    logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True, enqueue=True)
+    # File logger
+    logger.add('logs/{time}.log', rotation="1MB", retention="1 month", compression="zip", enqueue=True)
 except ModuleNotFoundError:
     pass
