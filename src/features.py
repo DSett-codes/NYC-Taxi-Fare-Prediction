@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
-
+from utils import haversine_distance, euclidean_distance, manhattan_distance
 
 from pathlib import Path
 
@@ -168,8 +168,32 @@ def modify_features(data_path,filename):
         
 
 
+
+new_feature_names = ['haversine_distance',
+                     'euclidean_distance',
+                     'manhattan_distance']
+
+build_features_list = [haversine_distance,
+                       euclidean_distance,
+                       manhattan_distance]
+
+
+def implement_distances(dataframe:pd.DataFrame, 
+                        lat1:pd.Series, 
+                        lon1:pd.Series, 
+                        lat2:pd.Series, 
+                        lon2:pd.Series) -> pd.DataFrame:
+    dataframe = dataframe.copy()
+    for ind in range(len(build_features_list)):
+        func = build_features_list[ind]
+        dataframe[new_feature_names[ind]] = func(lat1,lon1,
+                                                 lat2,lon2)
+    
+    return dataframe
+        
+
 @app.command()
-def main(
+def modify(
     # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
     input_path: Path,
     output_path: Path = PROCESSED_DATA_DIR / "transformations"
@@ -185,13 +209,27 @@ def main(
 
 
 
-# @app.command()
-# def main(
-#     # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-#     input_path: Path = PROCESSED_DATA_DIR / "dataset.csv",
-#     output_path: Path = PROCESSED_DATA_DIR / "features.csv",
-#     # -----------------------------------------
-# ):
+@app.command()
+def build(
+    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
+    input_path: Path = PROCESSED_DATA_DIR / "transformations",
+    output_path: Path = PROCESSED_DATA_DIR / "build-features",
+    # -----------------------------------------
+):
+    output_path.mkdir(parents=True, exist_ok=True)
+    for inp in input_path.iterdir():
+        if not inp.is_file():
+            continue
+        df = read_data(inp)
+        df = implement_distances(
+            dataframe=df,
+            lat1=df['pickup_latitude'],
+            lon1=df['pickup_longitude'],
+            lat2=df['dropoff_latitude'],
+            lon2=df['dropoff_longitude'],
+        )
+        save_data(df, output_path / inp.name)
+        logger.info(f'{output_path / inp.name} saved at the destination folder')
 
  
     

@@ -18,13 +18,13 @@ stages:
     outs:
       - .\data\interim
 
-  modify_features:
-    cmd: python .\src\features\modify_features.py data/interim/train.csv data/interim/val.csv data/raw/extracted/test.csv
+  modify_features: #Done 
+    cmd: python .\src\features.py modify data/interim/train.csv data/interim/val.csv data/processed/test/test.csv
     deps:
-      - .\src\features\modify_features.py
+      - .\src\features.py
       - .\data\interim\train.csv
       - .\data\interim\val.csv
-      - .\data\raw\extracted\test.csv
+      - .\data\processed\test\test.csv
     outs:
       - .\data\processed\transformations
 
