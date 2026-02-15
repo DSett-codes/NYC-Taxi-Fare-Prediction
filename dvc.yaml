@@ -1,82 +1,84 @@
 stages:
-  extract_dataset:  #Done
-    cmd: python .\src\extract_dataset.py
+  extract_dataset:
+    cmd: python -m src.dataset extract-dataset
     deps:
-      - .\src\extract_dataset.py
-      - .\data\raw
+      - src/dataset.py
+      - data/raw
     outs:
-      - .\data\processed  
-  
-  make_dataset:  #Done
-    cmd: python .\src\make_dataset.py train.csv
+      - data/processed/train
+      - data/processed/test
+
+  make_dataset:
+    cmd: python -m src.dataset make-dataset
     deps:
-      - .\data\raw\extracted\train.csv
-      - .\src\data\make_dataset.py
+      - src/dataset.py
+      - data/processed/train/train.csv
+      - params.yaml
     params:
       - make_dataset.test_size
       - make_dataset.random_state
     outs:
-      - .\data\interim
+      - data/interim
 
-  modify_features: #Done 
-    cmd: python .\src\features.py modify data/interim/train.csv data/interim/val.csv data/processed/test/test.csv
+  modify_features:
+    cmd: python -m src.features modify data/interim/train.csv data/interim/val.csv data/processed/test/test.csv
     deps:
-      - .\src\features.py
-      - .\data\interim\train.csv
-      - .\data\interim\val.csv
-      - .\data\processed\test\test.csv
+      - src/features.py
+      - data/interim/train.csv
+      - data/interim/val.csv
+      - data/processed/test/test.csv
     outs:
-      - .\data\processed\transformations
+      - data/processed/transformations
 
   build_features:
-    cmd: python .\src\features\build_features.py data/processed/transformations/train.csv data/processed/transformations/val.csv data/processed/transformations/test.csv
+    cmd: python -m src.features build data/processed/transformations/train.csv data/processed/transformations/val.csv data/processed/transformations/test.csv
     deps:
-      - .\src\features\build_features.py
-      - .\data\processed\transformations\train.csv
-      - .\data\processed\transformations\val.csv
-      - .\data\processed\transformations\test.csv
+      - src/features.py
+      - data/processed/transformations/train.csv
+      - data/processed/transformations/val.csv
+      - data/processed/transformations/test.csv
     outs:
-      - .\data\processed\build-features    
+      - data/processed/build-features
 
   data_preprocessing:
-    cmd: python .\src\features\data_preprocessing.py train.csv val.csv test.csv
+    cmd: python -m src.features preprocess train.csv val.csv test.csv
     deps:
-      - .\src\features\data_preprocessing.py
-      - .\data\processed\build-features\train.csv
-      - .\data\processed\build-features\val.csv
-      - .\data\processed\build-features\test.csv
+      - src/features.py
+      - params.yaml
+      - data/processed/build-features/train.csv
+      - data/processed/build-features/val.csv
+      - data/processed/build-features/test.csv
     params:
       - data_preprocessing.percentiles
     outs:
-      - .\data\processed\final
-      - .\models\transformers
+      - data/processed/final
+      - models/transformers
 
   train_model:
-    cmd: python .\src\models\train_model.py data/processed/final/train.csv
+    cmd: python -m src.modeling.train main
     deps:
-      - .\src\models\train_model.py
-      - .\data\processed\final\train.csv
+      - src/modeling/train.py
+      - data/processed/final/train.csv
     params:
       - train_model.random_forest_regressor.n_estimators
       - train_model.random_forest_regressor.n_jobs
       - train_model.random_forest_regressor.max_depth
       - train_model.random_forest_regressor.verbose
     outs:
-      - .\models\models
+      - models
 
   predict_model:
-    cmd: python .\src\models\predict_model.py train.csv val.csv
+    cmd: python -m src.modeling.predict main
     deps:
-      - .\src\models\predict_model.py
-      - .\data\processed\final\val.csv
-      - .\models\models
+      - src/modeling/predict.py
+      - models
 
   plot_results:
-    cmd: python .\src\visualization\plot_results.py train.csv val.csv
+    cmd: python -m src.plots main
     deps:
-      - .\src\visualization\plot_results.py
-      - .\data\processed\final\train.csv
-      - .\data\processed\final\val.csv
-      - .\models\models
+      - src/plots.py
+      - data/processed/final/train.csv
+      - data/processed/final/val.csv
+      - models
     outs:
-      - .\plots\model_results\
+      - plots

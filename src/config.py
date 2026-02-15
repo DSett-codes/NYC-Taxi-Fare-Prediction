@@ -28,8 +28,8 @@ try:
 
     logger.remove(0)
     # Console logger using tqdm.write to avoid conflicts with progress bars
-    logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True, enqueue=True)
+    logger.add(lambda msg: tqdm.write(msg, end=""), colorize=True, enqueue=False)
     # File logger
-    logger.add('logs/{time}.log', rotation="1MB", retention="1 month", compression="zip", enqueue=True)
+    logger.add('logs/{time}.log', rotation="1MB", retention="1 month", compression="zip", enqueue=False)
 except ModuleNotFoundError:
     pass
