@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 from sklearn.base import BaseEstimator, TransformerMixin, OneToOneFeatureMixin
+
 def haversine_distance(lat1:float, lon1:float, lat2:float, lon2:float):
     """
     Calculate haversine distances between two points given their latitude and
@@ -75,3 +76,4 @@ class OutliersRemover(TransformerMixin,OneToOneFeatureMixin, BaseEstimator):
             X = filter_df
             
         return X
+    

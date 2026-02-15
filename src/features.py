@@ -1,237 +1,290 @@
-import sys
-import logging
-import numpy as np
-import pandas as pd
-import seaborn as sns
-import matplotlib.pyplot as plt
-from utils import haversine_distance, euclidean_distance, manhattan_distance
-
 from pathlib import Path
 
-from loguru import logger
-from tqdm import tqdm
+import joblib
+import matplotlib.pyplot as plt
+import pandas as pd
+import seaborn as sns
 import typer
+from loguru import logger
+from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import MinMaxScaler, OneHotEncoder, PowerTransformer, StandardScaler
+from yaml import safe_load
 
-from src.config import PROCESSED_DATA_DIR, INTERIM_DATA_DIR
+from src.config import MODELS_DIR, PROCESSED_DATA_DIR
+from src.utils import OutliersRemover, euclidean_distance, haversine_distance, manhattan_distance
 
 app = typer.Typer()
 
-
-
-TARGET_COLUMN = 'trip_duration'
+TARGET_COLUMN = "trip_duration"
 PLOT_PATH = Path("reports/figures/target_distribution.png")
 
+DISTANCE_FEATURES = {
+    "haversine_distance": haversine_distance,
+    "euclidean_distance": euclidean_distance,
+    "manhattan_distance": manhattan_distance,
+}
 
-## Functions applied on target column
-def convert_target_to_minutes(dataframe: pd.DataFrame, target_column: str) -> pd.DataFrame:
-    # convert the target into minutes
-    dataframe.loc[:,target_column] = dataframe[target_column] / 60
-    logger.info('Target column converted from seconds into minutes')
-    return dataframe
-
-def drop_above_two_hundred_minutes(dataframe: pd.DataFrame, target_column: str) -> pd.DataFrame:
-    # filter rows where target is less than 200
-    filter_series = dataframe[target_column] <= 200
-    new_dataframe = dataframe.loc[filter_series,:].copy()
-    # max value of target column to checjk the outliers are removed
-    max_value = new_dataframe[target_column].max()
-    logger.info(f'The max value in target column after transformation is {max_value} and the state of transformation is {max_value <= 200}')
-    if max_value <= 200:
-        return new_dataframe
-    else:
-        raise ValueError('Outlier target values not removed from the data')        
+COORDINATE_COLUMNS = [
+    "pickup_latitude",
+    "pickup_longitude",
+    "dropoff_latitude",
+    "dropoff_longitude",
+]
 
 
-def plot_target(dataframe: pd.DataFrame, target_column: str, save_path: str):
-    # plot the density plot of the target after transformation
-    sns.kdeplot(data=dataframe, x=target_column)
-    plt.title(f'Distribution of {target_column}')
-    # save the plot at the destination path
-    plt.savefig(save_path)
-    logger.info('Distribution plot saved at destination')
-    
-    
+def read_data(path: Path) -> pd.DataFrame:
+    return pd.read_csv(path)
+
+
+def save_data(dataframe: pd.DataFrame, path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    dataframe.to_csv(path, index=False)
+
+
 def drop_columns(dataframe: pd.DataFrame) -> pd.DataFrame:
-    logger.info(f'Columns in data before removal are {list(dataframe.columns)}')
-    # drop columns from train and val data
-    if 'dropoff_datetime' in dataframe.columns:
-        columns_to_drop = ['id','dropoff_datetime','store_and_fwd_flag']
-        # dropping the columns from dataframe
-        dataframe_after_removal = dataframe.drop(columns=columns_to_drop)
-        list_of_columns_after_removal = list(dataframe_after_removal.columns)
-        logger.info(f'Columns in data after removal are {list_of_columns_after_removal}')
-        # verifying if columns dropped
-        logger.info(f"Columns {', '.join(columns_to_drop)} dropped from data  verify={columns_to_drop not in list_of_columns_after_removal}")
-        return dataframe_after_removal
-    # drop columns from the test data
-    else:
-        columns_to_drop = ['id','store_and_fwd_flag']
-        # dropping the columns from dataframe
-        dataframe_after_removal = dataframe.drop(columns=columns_to_drop)
-        list_of_columns_after_removal = list(dataframe_after_removal.columns)
-        # verifying if columns dropped
-        logger.info(f"Columns {', '.join(columns_to_drop)} dropped from data  verify={columns_to_drop not in list_of_columns_after_removal}")
-        return dataframe_after_removal
+    columns_to_drop = [
+        col
+        for col in ["id", "dropoff_datetime", "store_and_fwd_flag"]
+        if col in dataframe.columns
+    ]
+    transformed = dataframe.drop(columns=columns_to_drop)
+    logger.info(f"Dropped columns: {columns_to_drop}")
+    return transformed
 
 
 def make_datetime_features(dataframe: pd.DataFrame) -> pd.DataFrame:
-    # copy the original dataframe
-    new_dataframe = dataframe.copy()
-    # number of rows and column before transformation
-    original_number_of_rows, original_number_of_columns = new_dataframe.shape
-    
-    # convert the column to datetime column
-    new_dataframe['pickup_datetime'] = pd.to_datetime(new_dataframe['pickup_datetime'])
-    logger.info(f'pickup_datetime column converted to datetime {new_dataframe["pickup_datetime"].dtype}')
-    
-    # do the modifications
-    new_dataframe.loc[:,'pickup_hour'] = new_dataframe['pickup_datetime'].dt.hour 
-    new_dataframe.loc[:,'pickup_date'] = new_dataframe['pickup_datetime'].dt.day
-    new_dataframe.loc[:,'pickup_month'] = new_dataframe['pickup_datetime'].dt.month
-    new_dataframe.loc[:,'pickup_day'] = new_dataframe['pickup_datetime'].dt.weekday
-    new_dataframe.loc[:,'is_weekend'] = new_dataframe.apply(lambda row: row['pickup_day'] >= 5,axis=1).astype('int')
-    
-    # drop the redundant date time column
-    new_dataframe = new_dataframe.drop(columns=['pickup_datetime'])
-    logger.info(f'pickup_datetime column dropped  verify={"pickup_datetime" not in new_dataframe.columns}')
-    
-    # number of rows and columns after transformation
-    transformed_number_of_rows, transformed_number_of_columns = new_dataframe.shape
-    logger.info(f'The number of columns increased by 4 {transformed_number_of_columns == (original_number_of_columns + 5 - 1)}')
-    logger.info(f'The number of rows remained the same {original_number_of_rows == transformed_number_of_rows}')
-    return new_dataframe
+    if "pickup_datetime" not in dataframe.columns:
+        return dataframe
+
+    transformed = dataframe.copy()
+    pickup_time = pd.to_datetime(transformed["pickup_datetime"])
+    transformed["pickup_hour"] = pickup_time.dt.hour
+    transformed["pickup_date"] = pickup_time.dt.day
+    transformed["pickup_month"] = pickup_time.dt.month
+    transformed["pickup_day"] = pickup_time.dt.weekday
+    transformed["is_weekend"] = (transformed["pickup_day"] >= 5).astype(int)
+
+    transformed = transformed.drop(columns=["pickup_datetime"])
+    return transformed
 
 
 def remove_passengers(dataframe: pd.DataFrame) -> pd.DataFrame:
-    # make the list of passenger to keep
-    passengers_to_include = list(range(1,7))
-    # filter out rows which matches exavctly the passengers in the list
-    new_dataframe_filter = dataframe['passenger_count'].isin(passengers_to_include)
-    # filter the dataframe
-    new_dataframe = dataframe.loc[new_dataframe_filter,:]
-    # list of unique passenger values in the passenger_count column
-    unique_passenger_values = list(np.sort(new_dataframe['passenger_count'].unique()))
-    logger.info(f'The unique passenger list is {unique_passenger_values}  verify={passengers_to_include == unique_passenger_values}')
-    return new_dataframe
+    if "passenger_count" not in dataframe.columns:
+        return dataframe
+    return dataframe.loc[dataframe["passenger_count"].isin(range(1, 7)), :].copy()
+
+
+def convert_target_to_minutes(dataframe: pd.DataFrame, target_column: str) -> pd.DataFrame:
+    transformed = dataframe.copy()
+    transformed[target_column] = transformed[target_column] / 60.0
+    return transformed
+
+
+def drop_above_two_hundred_minutes(dataframe: pd.DataFrame, target_column: str) -> pd.DataFrame:
+    return dataframe.loc[dataframe[target_column] <= 200, :].copy()
+
+
+def plot_target(dataframe: pd.DataFrame, target_column: str, save_path: Path) -> None:
+    save_path.parent.mkdir(parents=True, exist_ok=True)
+    plt.figure(figsize=(8, 4))
+    sns.kdeplot(data=dataframe, x=target_column)
+    plt.title(f"Distribution of {target_column}")
+    plt.tight_layout()
+    plt.savefig(save_path)
+    plt.close()
 
 
 def input_modifications(dataframe: pd.DataFrame) -> pd.DataFrame:
-    # drop the columns in input data
-    new_df = drop_columns(dataframe)
-    # remove the rows having excluded passenger values
-    df_passengers_modifications = remove_passengers(new_df)
-    # add datetime features to data
-    df_with_datetime_features = make_datetime_features(df_passengers_modifications)
-    logger.info('Modifications with input features complete')
-    return df_with_datetime_features
-
-   
-def target_modifications(dataframe: pd.DataFrame, target_column: str=TARGET_COLUMN) -> pd.DataFrame:
-    # convert the target column from seconds to minutes
-    minutes_dataframe = convert_target_to_minutes(dataframe,target_column)
-    # remove target values greater than 200
-    target_outliers_removed_df = drop_above_two_hundred_minutes(minutes_dataframe,target_column)
-    # plot the target column
-    plot_target(dataframe=target_outliers_removed_df,target_column=target_column,
-                save_path=PLOT_PATH)
-    logger.info('Modifications with the target feature complete')
-    return target_outliers_removed_df
-
-# read the dataframe from location
-def read_data(data_path):
-    df = pd.read_csv(data_path)
-    return df
-
-# save the dataframe to location
-def save_data(dataframe: pd.DataFrame,save_path: Path):
-    dataframe.to_csv(save_path,index=False)
-    
-    
-# TODO 1. Make a function to read the dataframe from the dvc.yaml file
-# TODO 2. Add Logging Functionality to each function
-# TODO 3. Run the code in notebook mode to test with print statements
-# ? Should logging be added to each function or the main function for specific steps
+    transformed = drop_columns(dataframe)
+    transformed = remove_passengers(transformed)
+    transformed = make_datetime_features(transformed)
+    logger.info("Input feature modifications complete")
+    return transformed
 
 
-def modify_features(data_path,filename):
-    # read the data into dataframe
-    df = read_data(data_path)
-    # do the modifications on the input data
-    df_input_modifications = input_modifications(dataframe=df)
-    # check whether the input file has target column
-    if (filename == "train.csv") or (filename == "val.csv"):
-        df_final = target_modifications(dataframe=df_input_modifications)  
-    else:
-        df_final = df_input_modifications
-        
-    return df_final
-        
+def target_modifications(dataframe: pd.DataFrame, target_column: str = TARGET_COLUMN) -> pd.DataFrame:
+    transformed = convert_target_to_minutes(dataframe, target_column)
+    transformed = drop_above_two_hundred_minutes(transformed, target_column)
+    plot_target(transformed, target_column, PLOT_PATH)
+    logger.info("Target modifications complete")
+    return transformed
 
 
-
-new_feature_names = ['haversine_distance',
-                     'euclidean_distance',
-                     'manhattan_distance']
-
-build_features_list = [haversine_distance,
-                       euclidean_distance,
-                       manhattan_distance]
+def modify_features(data_path: Path) -> pd.DataFrame:
+    dataframe = read_data(data_path)
+    transformed = input_modifications(dataframe)
+    if TARGET_COLUMN in transformed.columns:
+        transformed = target_modifications(transformed)
+    return transformed
 
 
-def implement_distances(dataframe:pd.DataFrame, 
-                        lat1:pd.Series, 
-                        lon1:pd.Series, 
-                        lat2:pd.Series, 
-                        lon2:pd.Series) -> pd.DataFrame:
-    dataframe = dataframe.copy()
-    for ind in range(len(build_features_list)):
-        func = build_features_list[ind]
-        dataframe[new_feature_names[ind]] = func(lat1,lon1,
-                                                 lat2,lon2)
-    
-    return dataframe
-        
+def implement_distances(dataframe: pd.DataFrame) -> pd.DataFrame:
+    transformed = dataframe.copy()
+    lat1 = transformed["pickup_latitude"]
+    lon1 = transformed["pickup_longitude"]
+    lat2 = transformed["dropoff_latitude"]
+    lon2 = transformed["dropoff_longitude"]
+
+    for feature_name, func in DISTANCE_FEATURES.items():
+        transformed[feature_name] = func(lat1, lon1, lat2, lon2)
+
+    return transformed
+
+
+def remove_outliers(dataframe: pd.DataFrame, percentiles: list[float], column_names: list[str]) -> OutliersRemover:
+    transformer = OutliersRemover(percentile_values=percentiles, col_subset=column_names)
+    transformer.fit(dataframe)
+    return transformer
+
+
+def train_preprocessor(data: pd.DataFrame) -> ColumnTransformer:
+    preprocessor = ColumnTransformer(
+        transformers=[
+            (
+                "one-hot",
+                OneHotEncoder(drop="first", sparse_output=False, handle_unknown="ignore"),
+                ["vendor_id"],
+            ),
+            ("min-max", MinMaxScaler(), COORDINATE_COLUMNS),
+            (
+                "standard-scale",
+                StandardScaler(),
+                ["haversine_distance", "euclidean_distance", "manhattan_distance"],
+            ),
+        ],
+        remainder="passthrough",
+        verbose_feature_names_out=False,
+        n_jobs=1,
+    )
+    preprocessor.set_output(transform="pandas")
+    preprocessor.fit(data)
+    return preprocessor
+
+
+def transform_data(transformer, data):
+    return transformer.transform(data)
+
+
+def transform_output(target: pd.Series) -> PowerTransformer:
+    transformer = PowerTransformer(method="yeo-johnson", standardize=True)
+    transformer.fit(target.to_numpy().reshape(-1, 1))
+    return transformer
+
+
+def save_transformer(path: Path, obj) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    joblib.dump(value=obj, filename=path)
+
+
+def iter_csv_inputs(input_paths: list[Path]) -> list[Path]:
+    resolved_paths: list[Path] = []
+    for path in input_paths:
+        if path.is_dir():
+            resolved_paths.extend(sorted(path.glob("*.csv")))
+        elif path.suffix == ".csv":
+            resolved_paths.append(path)
+    return resolved_paths
+
 
 @app.command()
 def modify(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    input_path: Path,
-    output_path: Path = PROCESSED_DATA_DIR / "transformations"
+    input_paths: list[Path],
+    output_path: Path = typer.Option(PROCESSED_DATA_DIR / "transformations", "--output-path"),
 ):
-    df_final = modify_features(input_path,input_path.name)
-    output_path.mkdir(parents=True,exist_ok=True)
-    # save the data
-    save_data(df_final,output_path / input_path.name)
-    logger.info(f'{output_path / input_path.name} saved at the destination folder')
+    csv_inputs = iter_csv_inputs(input_paths)
+    if not csv_inputs:
+        raise typer.BadParameter("No CSV input files were provided.")
 
-
-
-
+    for path in csv_inputs:
+        transformed = modify_features(path)
+        save_path = output_path / path.name
+        save_data(transformed, save_path)
+        logger.info(f"Saved transformed file to: {save_path}")
 
 
 @app.command()
 def build(
-    # ---- REPLACE DEFAULT PATHS AS APPROPRIATE ----
-    input_path: Path = PROCESSED_DATA_DIR / "transformations",
-    output_path: Path = PROCESSED_DATA_DIR / "build-features",
-    # -----------------------------------------
+    input_paths: list[Path],
+    output_path: Path = typer.Option(PROCESSED_DATA_DIR / "build-features", "--output-path"),
 ):
-    output_path.mkdir(parents=True, exist_ok=True)
-    for inp in input_path.iterdir():
-        if not inp.is_file():
-            continue
-        df = read_data(inp)
-        df = implement_distances(
-            dataframe=df,
-            lat1=df['pickup_latitude'],
-            lon1=df['pickup_longitude'],
-            lat2=df['dropoff_latitude'],
-            lon2=df['dropoff_longitude'],
-        )
-        save_data(df, output_path / inp.name)
-        logger.info(f'{output_path / inp.name} saved at the destination folder')
+    csv_inputs = iter_csv_inputs(input_paths)
+    if not csv_inputs:
+        raise typer.BadParameter("No CSV input files were provided.")
 
- 
-    
+    for path in csv_inputs:
+        dataframe = read_data(path)
+        transformed = implement_distances(dataframe)
+        save_path = output_path / path.name
+        save_data(transformed, save_path)
+        logger.info(f"Saved built-features file to: {save_path}")
+
+
+@app.command("preprocess")
+def preprocess(
+    filenames: list[str] = typer.Argument(["train.csv", "val.csv", "test.csv"]),
+    input_path: Path = typer.Option(PROCESSED_DATA_DIR / "build-features", "--input-path"),
+    output_path: Path = typer.Option(PROCESSED_DATA_DIR / "final", "--output-path"),
+    transformers_path: Path = typer.Option(MODELS_DIR / "transformers", "--transformers-path"),
+    params_path: Path = typer.Option(Path("params.yaml"), "--params-path"),
+):
+    with open(params_path, encoding="utf-8") as stream:
+        params = safe_load(stream)
+
+    percentiles = list(params["data_preprocessing"]["percentiles"])
+
+    for filename in filenames:
+        data_file = input_path / filename
+        dataframe = read_data(data_file)
+
+        if filename == "train.csv":
+            X = dataframe.drop(columns=TARGET_COLUMN)
+            y = dataframe[TARGET_COLUMN]
+
+            outlier_transformer = remove_outliers(X, percentiles, COORDINATE_COLUMNS)
+            X_no_outliers = transform_data(outlier_transformer, X)
+            y_no_outliers = y.loc[X_no_outliers.index]
+            save_transformer(transformers_path / "outliers.joblib", outlier_transformer)
+
+            preprocessor = train_preprocessor(X_no_outliers)
+            X_transformed = transform_data(preprocessor, X_no_outliers)
+            save_transformer(transformers_path / "preprocessor.joblib", preprocessor)
+
+            output_transformer = transform_output(y_no_outliers)
+            y_transformed = transform_data(output_transformer, y_no_outliers.to_numpy().reshape(-1, 1)).ravel()
+            save_transformer(transformers_path / "output_transformer.joblib", output_transformer)
+
+            X_transformed[TARGET_COLUMN] = y_transformed
+            save_data(X_transformed, output_path / filename)
+
+        elif filename == "val.csv":
+            X = dataframe.drop(columns=TARGET_COLUMN)
+            y = dataframe[TARGET_COLUMN]
+
+            outlier_transformer = joblib.load(transformers_path / "outliers.joblib")
+            preprocessor = joblib.load(transformers_path / "preprocessor.joblib")
+            output_transformer = joblib.load(transformers_path / "output_transformer.joblib")
+
+            X_no_outliers = transform_data(outlier_transformer, X)
+            y_no_outliers = y.loc[X_no_outliers.index]
+            X_transformed = transform_data(preprocessor, X_no_outliers)
+            y_transformed = transform_data(output_transformer, y_no_outliers.to_numpy().reshape(-1, 1)).ravel()
+
+            X_transformed[TARGET_COLUMN] = y_transformed
+            save_data(X_transformed, output_path / filename)
+
+        elif filename == "test.csv":
+            outlier_transformer = joblib.load(transformers_path / "outliers.joblib")
+            preprocessor = joblib.load(transformers_path / "preprocessor.joblib")
+
+            X_no_outliers = transform_data(outlier_transformer, dataframe)
+            X_transformed = transform_data(preprocessor, X_no_outliers)
+            save_data(X_transformed, output_path / filename)
+
+        else:
+            logger.warning(f"Skipping unsupported filename: {filename}")
+
+        logger.info(f"Preprocessed file: {filename}")
+
+
 if __name__ == "__main__":
     app()
