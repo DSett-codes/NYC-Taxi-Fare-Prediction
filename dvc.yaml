@@ -55,7 +55,7 @@ stages:
       - models/transformers
 
   train_model:
-    cmd: python -m src.modeling.train main
+    cmd: python -m src.modeling.train
     deps:
       - src/modeling/train.py
       - data/processed/final/train.csv
@@ -68,7 +68,7 @@ stages:
       - models
 
   predict_model:
-    cmd: python -m src.modeling.predict main
+    cmd: python -m src.modeling.predict 
     deps:
       - src/modeling/predict.py
       - models
