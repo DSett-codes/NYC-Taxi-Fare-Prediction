@@ -1,13 +1,13 @@
 schema: '2.0'
 stages:
   extract_dataset:
-    cmd: python -m src.dataset extract-dataset
+    cmd: .venv\Scripts\python.exe -m src.dataset extract-dataset
     deps:
     - path: data/raw
       hash: md5
-      md5: 2ac9e57fc0bc2d2a1a610a695529d479.dir
-      size: 87295035
-      nfiles: 2
+      md5: f3415f617a33e13c84c1e7ed9e0caf92.dir
+      size: 59
+      nfiles: 1
     - path: src/dataset.py
       hash: md5
       md5: ae20eb8a614cf13104fa8abb46ac57d7
@@ -24,7 +24,7 @@ stages:
       size: 200589097
       nfiles: 1
   make_dataset:
-    cmd: python -m src.dataset make-dataset
+    cmd: .venv\Scripts\python.exe -m src.dataset make-dataset
     deps:
     - path: data/processed/train/train.csv
       hash: md5
@@ -32,12 +32,12 @@ stages:
       size: 200589097
     - path: params.yaml
       hash: md5
-      md5: 93fd8baaee85a31a0136a08b0a5056ff
-      size: 465
+      md5: 06f872c0a0f0c3b5045f2f9c516752df
+      size: 486
     - path: src/dataset.py
       hash: md5
-      md5: ae20eb8a614cf13104fa8abb46ac57d7
-      size: 3463
+      md5: 5d38483e101f13f6bd4385e3fe584b1f
+      size: 3518
     params:
       params.yaml:
         make_dataset.random_state: 42
@@ -45,9 +45,9 @@ stages:
     outs:
     - path: data/interim
       hash: md5
-      md5: bae9420fa9ac1bba5666bc746b912413.dir
+      md5: c3a5a9f14cd28f2fc5fab1b54e43043c.dir
       size: 197004804
-      nfiles: 3
+      nfiles: 2
   modify_features:
     cmd: python -m src.features modify data/interim/train.csv 
       data/interim/val.csv data/processed/test/test.csv
