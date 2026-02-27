@@ -5,9 +5,9 @@ stages:
     deps:
     - path: data/raw
       hash: md5
-      md5: c0d34d5e4f13a01e6d10afa3c9ef5c89.dir
+      md5: 2ac9e57fc0bc2d2a1a610a695529d479.dir
       size: 87295035
-      nfiles: 3
+      nfiles: 2
     - path: src/dataset.py
       hash: md5
       md5: ae20eb8a614cf13104fa8abb46ac57d7
@@ -15,9 +15,9 @@ stages:
     outs:
     - path: data/processed/test
       hash: md5
-      md5: 56c555e7b3b5195ec974c1fc9955f0e2.dir
-      size: 70794289
-      nfiles: 1
+      md5: 711be8bee4ed865a6b169211c8f32a8b.dir
+      size: 82358605
+      nfiles: 2
     - path: data/processed/train
       hash: md5
       md5: 541a8839b4d930e5306d6b76f21cd0f0.dir
@@ -32,8 +32,8 @@ stages:
       size: 200589097
     - path: params.yaml
       hash: md5
-      md5: f914de7a9b9b5be510e5804c1192704d
-      size: 295
+      md5: 93fd8baaee85a31a0136a08b0a5056ff
+      size: 465
     - path: src/dataset.py
       hash: md5
       md5: ae20eb8a614cf13104fa8abb46ac57d7
@@ -118,8 +118,8 @@ stages:
       size: 23786352
     - path: params.yaml
       hash: md5
-      md5: f914de7a9b9b5be510e5804c1192704d
-      size: 295
+      md5: 93fd8baaee85a31a0136a08b0a5056ff
+      size: 465
     - path: src/features.py
       hash: md5
       md5: 059ec837f93e261d685debaa54697b0f
@@ -141,7 +141,7 @@ stages:
       size: 6071
       nfiles: 3
   train_model:
-    cmd: python -m src.modeling.train main
+    cmd: python -m src.modeling.train
     deps:
     - path: data/processed/final/train.csv
       hash: md5
@@ -149,8 +149,8 @@ stages:
       size: 225978875
     - path: src/modeling/train.py
       hash: md5
-      md5: f5c9acbb4aede38153c15fd3b0098dfe
-      size: 844
+      md5: 111854599b3f660b2789675b6f44e2e9
+      size: 1848
     params:
       params.yaml:
         train_model.random_forest_regressor.max_depth: 6
@@ -160,21 +160,21 @@ stages:
     outs:
     - path: models
       hash: md5
-      md5: 5648a6293f4816d5eba480eb7146fd88.dir
-      size: 6176
-      nfiles: 5
+      md5: 726927c1992ed6a19d468038cd9726eb.dir
+      size: 26804574
+      nfiles: 4
   predict_model:
-    cmd: python -m src.modeling.predict main
+    cmd: python -m src.modeling.predict
     deps:
     - path: models
       hash: md5
-      md5: 5648a6293f4816d5eba480eb7146fd88.dir
-      size: 6176
-      nfiles: 5
+      md5: 726927c1992ed6a19d468038cd9726eb.dir
+      size: 26804574
+      nfiles: 4
     - path: src/modeling/predict.py
       hash: md5
-      md5: 8b77a9fb8e8bddef44dabbdde7cd75bb
-      size: 867
+      md5: 617dce17a70e13c5415e20702677ef1b
+      size: 1669
   plot_results:
     cmd: python -m src.plots main
     deps:
@@ -188,13 +188,13 @@ stages:
       size: 25105376
     - path: models
       hash: md5
-      md5: 5648a6293f4816d5eba480eb7146fd88.dir
-      size: 6176
-      nfiles: 5
+      md5: 726927c1992ed6a19d468038cd9726eb.dir
+      size: 26804574
+      nfiles: 4
     - path: src/plots.py
       hash: md5
-      md5: 968dcb6d4071a9ae3f3006f0d4853ddb
-      size: 786
+      md5: 01f60ce9ef45f7aeafa2839ba64f03a9
+      size: 913
     outs:
     - path: plots
       hash: md5
