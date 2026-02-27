@@ -1,7 +1,5 @@
 # Data
-# /data/
-data/interim/
-data/processed/
+data/
 /%TEMP%/
 # Mac OS-specific storage files
 .DS_Store
