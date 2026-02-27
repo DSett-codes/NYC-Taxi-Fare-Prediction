@@ -36,8 +36,8 @@ stages:
       size: 486
     - path: src/dataset.py
       hash: md5
-      md5: 5d38483e101f13f6bd4385e3fe584b1f
-      size: 3518
+      md5: 181ec44b9ffb6f134219511eb80b2cb2
+      size: 3522
     params:
       params.yaml:
         make_dataset.random_state: 42
@@ -49,7 +49,7 @@ stages:
       size: 197004804
       nfiles: 2
   modify_features:
-    cmd: python -m src.features modify data/interim/train.csv 
+    cmd: .venv\Scripts\python.exe -m src.features modify data/interim/train.csv 
       data/interim/val.csv data/processed/test/test.csv
     deps:
     - path: data/interim/train.csv
@@ -75,7 +75,8 @@ stages:
       size: 208192931
       nfiles: 3
   build_features:
-    cmd: python -m src.features build data/processed/transformations/train.csv 
+    cmd: .venv\Scripts\python.exe -m src.features build 
+      data/processed/transformations/train.csv 
       data/processed/transformations/val.csv 
       data/processed/transformations/test.csv
     deps:
@@ -102,7 +103,8 @@ stages:
       size: 331246740
       nfiles: 3
   data_preprocessing:
-    cmd: python -m src.features preprocess train.csv val.csv test.csv
+    cmd: .venv\Scripts\python.exe -m src.features preprocess train.csv val.csv 
+      test.csv
     deps:
     - path: data/processed/build-features/test.csv
       hash: md5
@@ -118,8 +120,8 @@ stages:
       size: 23786352
     - path: params.yaml
       hash: md5
-      md5: 93fd8baaee85a31a0136a08b0a5056ff
-      size: 465
+      md5: 06f872c0a0f0c3b5045f2f9c516752df
+      size: 486
     - path: src/features.py
       hash: md5
       md5: 059ec837f93e261d685debaa54697b0f
@@ -141,63 +143,71 @@ stages:
       size: 6071
       nfiles: 3
   train_model:
-    cmd: python -m src.modeling.train
+    cmd: .venv\Scripts\python.exe -m src.modeling.train
     deps:
     - path: data/processed/final/train.csv
       hash: md5
       md5: 3e0b1cf22fa0a969a7dd5cf8aba667f0
       size: 225978875
+    - path: params.yaml
+      hash: md5
+      md5: 06f872c0a0f0c3b5045f2f9c516752df
+      size: 486
     - path: src/modeling/train.py
       hash: md5
       md5: 111854599b3f660b2789675b6f44e2e9
       size: 1848
     params:
       params.yaml:
-        train_model.random_forest_regressor.max_depth: 6
-        train_model.random_forest_regressor.n_estimators: 500
-        train_model.random_forest_regressor.n_jobs: -1
-        train_model.random_forest_regressor.verbose: 2
+        train_model.xgb_regressor.max_depth: 10
+        train_model.xgb_regressor.n_estimators: 1000
+        train_model.xgb_regressor.n_jobs: -1
+        train_model.xgb_regressor.verbosity: 2
     outs:
-    - path: models
+    - path: models/models
       hash: md5
-      md5: 726927c1992ed6a19d468038cd9726eb.dir
-      size: 26804574
-      nfiles: 4
+      md5: db12b33cd4c84e66a3175134b60c45d7.dir
+      size: 53182467
+      nfiles: 1
   predict_model:
-    cmd: python -m src.modeling.predict
+    cmd: .venv\Scripts\python.exe -m src.modeling.predict --predictions-path 
+      data/processed
     deps:
-    - path: models
+    - path: data/processed/final/test.csv
       hash: md5
-      md5: 726927c1992ed6a19d468038cd9726eb.dir
-      size: 26804574
-      nfiles: 4
-    - path: src/modeling/predict.py
-      hash: md5
-      md5: 617dce17a70e13c5415e20702677ef1b
-      size: 1669
-  plot_results:
-    cmd: python -m src.plots main
-    deps:
-    - path: data/processed/final/train.csv
-      hash: md5
-      md5: 3e0b1cf22fa0a969a7dd5cf8aba667f0
-      size: 225978875
+      md5: 9bc1e0c094a58f391e224f704020d619
+      size: 95683721
     - path: data/processed/final/val.csv
       hash: md5
       md5: 61a2b26d1825bd414f072e731e0ef3e0
       size: 25105376
-    - path: models
+    - path: models/models/xgbreg.joblib
       hash: md5
-      md5: 726927c1992ed6a19d468038cd9726eb.dir
-      size: 26804574
-      nfiles: 4
+      md5: 20796d4ede88a48f635a057ae6e62e5d
+      size: 53182467
+    - path: src/modeling/predict.py
+      hash: md5
+      md5: 617dce17a70e13c5415e20702677ef1b
+      size: 1669
+    outs:
+    - path: data/processed/test_predictions.csv
+      hash: md5
+      md5: d86cbbbe1c4588b90edd46ff814016bf
+      size: 11561778
+  plot_results:
+    cmd: .venv\Scripts\python.exe -m src.plots --input-path 
+      data/processed/final/val.csv --output-path plots/val_plot.png
+    deps:
+    - path: data/processed/final/val.csv
+      hash: md5
+      md5: 61a2b26d1825bd414f072e731e0ef3e0
+      size: 25105376
     - path: src/plots.py
       hash: md5
       md5: 01f60ce9ef45f7aeafa2839ba64f03a9
       size: 913
     outs:
-    - path: plots
+    - path: plots/val_plot.png
       hash: md5
-      md5: d751713988987e9331980363e24189ce.dir
-      size: 0
-      nfiles: 0
+      md5: a57c6462288b9029dcce7a01b19d04cc
+      size: 42801

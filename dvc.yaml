@@ -88,7 +88,7 @@ stages:
       - data/processed/test_predictions.csv
 
   plot_results:
-    cmd: .venv\Scripts\python.exe -m src.plots main --input-path data/processed/final/val.csv --output-path plots/val_plot.png
+    cmd: .venv\Scripts\python.exe -m src.plots --input-path data/processed/final/val.csv --output-path plots/val_plot.png
     deps:
       - src/plots.py
       - data/processed/final/val.csv
