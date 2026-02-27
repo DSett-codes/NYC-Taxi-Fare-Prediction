@@ -1,6 +1,13 @@
+# DVC pipeline contract:
+# - Each stage should own unique output paths.
+# - Avoid writing files inside directories that are outputs of other stages.
 stages:
   extract_dataset:
-    cmd: python -m src.dataset extract-dataset
+    # This stage needs data/raw/train.zip and data/raw/test.zip.
+    # It is frozen so repro can use cached extracted outputs when raw zips are absent.
+    # Unfreeze with: dvc unfreeze extract_dataset (after adding the zip files).
+    frozen: true
+    cmd: .venv\Scripts\python.exe -m src.dataset extract-dataset
     deps:
       - src/dataset.py
       - data/raw
@@ -9,7 +16,7 @@ stages:
       - data/processed/test
 
   make_dataset:
-    cmd: python -m src.dataset make-dataset
+    cmd: .venv\Scripts\python.exe -m src.dataset make-dataset
     deps:
       - src/dataset.py
       - data/processed/train/train.csv
@@ -21,7 +28,7 @@ stages:
       - data/interim
 
   modify_features:
-    cmd: python -m src.features modify data/interim/train.csv data/interim/val.csv data/processed/test/test.csv
+    cmd: .venv\Scripts\python.exe -m src.features modify data/interim/train.csv data/interim/val.csv data/processed/test/test.csv
     deps:
       - src/features.py
       - data/interim/train.csv
@@ -31,7 +38,7 @@ stages:
       - data/processed/transformations
 
   build_features:
-    cmd: python -m src.features build data/processed/transformations/train.csv data/processed/transformations/val.csv data/processed/transformations/test.csv
+    cmd: .venv\Scripts\python.exe -m src.features build data/processed/transformations/train.csv data/processed/transformations/val.csv data/processed/transformations/test.csv
     deps:
       - src/features.py
       - data/processed/transformations/train.csv
@@ -41,7 +48,7 @@ stages:
       - data/processed/build-features
 
   data_preprocessing:
-    cmd: python -m src.features preprocess train.csv val.csv test.csv
+    cmd: .venv\Scripts\python.exe -m src.features preprocess train.csv val.csv test.csv
     deps:
       - src/features.py
       - params.yaml
@@ -55,7 +62,7 @@ stages:
       - models/transformers
 
   train_model:
-    cmd: python -m src.modeling.train
+    cmd: .venv\Scripts\python.exe -m src.modeling.train
     deps:
       - src/modeling/train.py
       - params.yaml
@@ -69,19 +76,22 @@ stages:
       - models/models
 
   predict_model:
-    cmd: python -m src.modeling.predict
+    # Write predictions to data/processed (existing parent) to avoid overlap with
+    # extract_dataset output directory data/processed/test.
+    cmd: .venv\Scripts\python.exe -m src.modeling.predict --predictions-path data/processed
     deps:
       - src/modeling/predict.py
       - data/processed/final/val.csv
       - data/processed/final/test.csv
       - models/models/xgbreg.joblib
     outs:
-      - data/processed/test/test_predictions.csv
+      - data/processed/test_predictions.csv
 
   plot_results:
-    cmd: python -m src.plots main --input-path data/processed/final/val.csv --output-path plots/val_plot.png
+    cmd: .venv\Scripts\python.exe -m src.plots main --input-path data/processed/final/val.csv --output-path plots/val_plot.png
     deps:
       - src/plots.py
       - data/processed/final/val.csv
     outs:
-      - plots
+      # Track only the produced plot file instead of the whole directory.
+      - plots/val_plot.png

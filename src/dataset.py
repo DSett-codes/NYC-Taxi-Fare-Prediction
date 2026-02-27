@@ -38,6 +38,7 @@ def train_val_split(data: pd.DataFrame,
     return train_data, val_data
 
 def save_data(data: pd.DataFrame,output_path: Path):
+    output_path.parent.mkdir(parents=True, exist_ok=True)
     data.to_csv(output_path,index=False)
     logger.info(f'{output_path.stem + output_path.suffix} data saved successfully to the output folder')
 
