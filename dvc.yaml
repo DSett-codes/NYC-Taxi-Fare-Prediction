@@ -58,27 +58,30 @@ stages:
     cmd: python -m src.modeling.train
     deps:
       - src/modeling/train.py
+      - params.yaml
       - data/processed/final/train.csv
     params:
-      - train_model.random_forest_regressor.n_estimators
-      - train_model.random_forest_regressor.n_jobs
-      - train_model.random_forest_regressor.max_depth
-      - train_model.random_forest_regressor.verbose
+      - train_model.xgb_regressor.n_estimators
+      - train_model.xgb_regressor.n_jobs
+      - train_model.xgb_regressor.max_depth
+      - train_model.xgb_regressor.verbosity
     outs:
-      - models
+      - models/models
 
   predict_model:
-    cmd: python -m src.modeling.predict 
+    cmd: python -m src.modeling.predict
     deps:
       - src/modeling/predict.py
-      - models
+      - data/processed/final/val.csv
+      - data/processed/final/test.csv
+      - models/models/xgbreg.joblib
+    outs:
+      - data/processed/test/test_predictions.csv
 
   plot_results:
-    cmd: python -m src.plots main
+    cmd: python -m src.plots main --input-path data/processed/final/val.csv --output-path plots/val_plot.png
     deps:
       - src/plots.py
-      - data/processed/final/train.csv
       - data/processed/final/val.csv
-      - models
     outs:
       - plots
